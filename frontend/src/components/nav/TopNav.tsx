@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
+import { UserMenu } from "./UserMenu";
 
 export function TopNav() {
   return (
@@ -23,9 +24,7 @@ export function TopNav() {
         <button className="p-2 hover:bg-white/5 rounded-full transition-colors bloom-hover">
           <span className="material-symbols-outlined text-[20px]">settings</span>
         </button>
-        <div className="w-8 h-8 rounded-full border border-white/20 bg-surface-container overflow-hidden ml-2">
-          {/* Avatar placeholder */}
-        </div>
+        <UserMenu />
       </div>
     </nav>
   );
