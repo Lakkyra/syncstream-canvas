@@ -1,0 +1,12 @@
+3. Algorithm Visualization & Simulation Dashboard
+JD Alignment: "Algorithm Development", "Numeric Solvers", "Web & App Development".
+
+The Project: Create a cross-platform application using Dart and Flutter that visualizes complex algorithms in real-time. This could involve pathfinding algorithms (useful for their "Automated Driving" or "Robotics" domains), sorting, or numeric solvers.
+
+Why it works: This effectively merges competitive programming and algorithmic problem-solving with full-stack application deployment. You can use Firebase for state management or user authentication, hitting the cloud and web development focus areas while demonstrating strong algorithmic logic.
+
+Research Document
+Product Requirements Document (PRD)
+Technical Design Document
+AGENTS.md (AI Context File)
+Testing Strategy (TESTING.md)
