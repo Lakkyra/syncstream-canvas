@@ -1,11 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { generateUploadUrl } from "./services/upload";
 import { markMediaProcessing, createMediaRecord } from "./services/media";
-import { auth } from "./firebase";
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -32,10 +31,10 @@ app.post("/api/upload/init", requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: "Missing metadata" });
     }
 
-    const { uploadUrl, mediaId, storagePath } = await generateUploadUrl(userId, filename, contentType, sizeBytes);
+    const { uploadUrl, token, mediaId, storagePath } = await generateUploadUrl(userId, filename, contentType, sizeBytes);
     await createMediaRecord(userId, mediaId, filename, contentType, sizeBytes, storagePath);
 
-    return res.json({ uploadUrl, mediaId });
+    return res.json({ uploadUrl, token, mediaId });
   } catch (error: any) {
     console.error("Upload init error:", error);
     if (error.message === "File too large") {
@@ -55,14 +54,112 @@ app.post("/api/upload/complete", requireAuth, async (req: any, res: any) => {
     }
 
     await markMediaProcessing(userId, mediaId);
-    return res.json({ status: "success" });
-  } catch (error) {
+
+    // [LOCAL DEV ONLY] Automatically trigger the transcoder microservice 
+    // In production, Supabase Webhooks handle this automatically.
+    const { supabase } = require("./supabase");
+    
+    // Simulate event payload
+    const payload = {
+      record: {
+        id: mediaId,
+        user_id: userId,
+        storage_path: req.body.storagePath // Assume we pass storagePath or fetch it
+      }
+    };
+
+    // We'll just fetch the storagePath since we need it
+    const { data: mediaRecord } = await supabase.from('media').select('storage_path').eq('id', mediaId).single();
+    
+    if (mediaRecord) {
+      try {
+        await fetch("http://localhost:8080/transcode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bucket: "media",
+            name: mediaRecord.storage_path,
+            mediaId: mediaId
+          }),
+        });
+      } catch (err) {
+        console.error("Local transcoder webhook failed. Is it running on port 8080?", err);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (error: any) {
     console.error("Upload complete error:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
+app.post("/api/room/end", requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.userId;
+    const { mediaId } = req.body;
+
+    if (!mediaId) {
+      return res.status(400).json({ error: "Missing mediaId" });
+    }
+
+    const { supabase } = require("./supabase");
+    
+    // 1. Delete from DB
+    const { error: dbError } = await supabase
+      .from('media')
+      .delete()
+      .match({ id: mediaId, user_id: userId });
+
+    if (dbError) throw new Error("DB Delete failed: " + dbError.message);
+
+    // 2. Delete all related files from Storj S3 (original + hls)
+    // Both are under users/userId/uploads/mediaId and users/userId/hls/mediaId
+    // Actually, to make it simple we can just delete the two prefixes:
+    await deleteMediaPrefix(`users/${userId}/uploads/${mediaId}/`);
+    await deleteMediaPrefix(`users/${userId}/hls/${mediaId}/`);
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Room end error:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+import { createServer } from "http";
+import { Server } from "socket.io";
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: "*" },
+});
+
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on("join-room", (roomId) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined room ${roomId}`);
+  });
+
+  socket.on("chat-message", ({ roomId, user, text }) => {
+    // Ephemeral message broadcast to room (no DB save)
+    const message = {
+      id: Math.random().toString(36).substring(7),
+      user,
+      text,
+      timestamp: Date.now(),
+    };
+    io.to(roomId).emit("chat-message", message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
+httpServer.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 });

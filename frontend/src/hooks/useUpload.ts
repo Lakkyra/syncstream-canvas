@@ -28,6 +28,7 @@ export function useUpload() {
       // 2. Upload to Cloud Storage using XMLHttpRequest for progress events
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        // S3 signed URLs don't need auth headers, the signature is in the query params
         xhr.open("PUT", uploadUrl, true);
         xhr.setRequestHeader("Content-Type", file.type);
         
@@ -42,7 +43,8 @@ export function useUpload() {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
           } else {
-            reject(new Error("Upload failed to storage bucket"));
+            console.error("Supabase Upload Error:", xhr.status, xhr.responseText);
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
           }
         };
 
