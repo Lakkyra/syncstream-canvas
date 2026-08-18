@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { StorageMeter } from "@/components/dashboard/StorageMeter";
 import { UploadDropzone } from "@/components/dashboard/UploadDropzone";
 import { MediaGrid, type MediaItem } from "@/components/dashboard/MediaGrid";
@@ -9,10 +9,31 @@ import { useUpload } from "@/hooks/useUpload";
 export default function DashboardPage() {
   const { uploadFile, isUploading, progress } = useUpload();
   
-  // Hardcoded for now. Later this will be fetched from Firestore
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const usedBytes = mediaItems.reduce((acc, curr) => acc + curr.sizeBytes, 0);
   const maxBytes = 10 * 1024 * 1024 * 1024; // 10GB
+
+  const fetchMedia = async () => {
+    try {
+      // Call the Next.js API route which securely adds the Google OAuth user ID
+      // (Using /api/user-uploads instead of /api/media to avoid ad-blocker false positives)
+      const res = await fetch("/api/user-uploads");
+      if (res.ok) {
+        const data = await res.json();
+        setMediaItems(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch media", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedia();
+    
+    // Poll every 5 seconds to catch processing -> ready transitions
+    const interval = setInterval(fetchMedia, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleUpload = async (file: File) => {
     try {
@@ -28,7 +49,10 @@ export default function DashboardPage() {
     <div className="p-8 max-w-[1600px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-geist text-headline-lg font-bold text-primary">Upload Dashboard</h1>
-        <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg font-mono text-sm hover:bg-white/10 transition-colors">
+        <button 
+          onClick={fetchMedia}
+          className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg font-mono text-sm hover:bg-white/10 transition-colors"
+        >
           Refresh List
         </button>
       </div>

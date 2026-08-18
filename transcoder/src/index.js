@@ -6,6 +6,14 @@ const os = require('os');
 const WebSocket = require('ws');
 require('dotenv').config();
 
+// Use bundled FFmpeg binaries — no system install needed
+const ffmpegPath = require('ffmpeg-static');
+const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegPath);
+ffmpeg.setFfprobePath(ffprobePath);
+
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

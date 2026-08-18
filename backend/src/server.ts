@@ -22,6 +22,33 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
   next();
 };
 
+app.get("/api/media", requireAuth, async (req: any, res: any) => {
+  try {
+    const { supabase } = require("./supabase");
+    const { data: media, error } = await supabase
+      .from('media')
+      .select('id, filename, status, created_at, size_bytes')
+      .eq('user_id', req.userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    
+    // Map db fields to frontend MediaItem type
+    const mapped = media.map((item: any) => ({
+      id: item.id,
+      filename: item.filename,
+      status: item.status,
+      createdAt: item.created_at,
+      sizeBytes: item.size_bytes
+    }));
+    
+    return res.json(mapped);
+  } catch (err: any) {
+    console.error("Get media error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.post("/api/upload/init", requireAuth, async (req: any, res: any) => {
   try {
     const userId = req.userId;
